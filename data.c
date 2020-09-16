@@ -3,13 +3,14 @@
 	 https://www.viget.com/articles/game-programming-in-c-with-the-ncurses-library/
 	 and from "NCURSES Programming HOWTO"
 	 http://tldp.org/HOWTO/NCURSES-Programming-HOWTO/
-*/ 
+*/
 
 
 #include<stdio.h>
 #include<stdlib.h>
 #include<math.h>
 #include<string.h>
+#include<pthread.h>
 #ifndef NOGRAPHICS
 #include<unistd.h>
 #include<ncurses.h>
@@ -25,6 +26,8 @@
 
 	// number of points
 int pointCount;
+int numberOfThreads = 8;
+
 	// array of points before transformation
 float **pointArray;
 	// array of points after transformation
@@ -39,6 +42,7 @@ float depthBuffer[SCREENSIZE][SCREENSIZE];
 
 
 void vectorMult(float a[4], float b[4], float c[4][4]);
+void* transformPoints(void* a);
 
 
 #ifndef NOGRAPHICS
@@ -94,9 +98,9 @@ int row, col, element;
 
    for (row=0; row<4; row++) {
       for (col=0; col<4; col++) {
-         a[row][col] = 0.0; 
+         a[row][col] = 0.0;
          for (element=0; element<4; element++) {
-            a[row][col] += b[row][element] * c[element][col]; 
+            a[row][col] += b[row][element] * c[element][col];
          }
       }
    }
@@ -110,9 +114,9 @@ int col, element;
 
 
    for (col=0; col<4; col++) {
-      a[col] = 0.0; 
+      a[col] = 0.0;
       for (element=0; element<4; element++) {
-         a[col] += b[element] * c[element][col]; 
+         a[col] += b[element] * c[element][col];
       }
    }
 
@@ -190,7 +194,7 @@ float val;
 }
 
 void initTransform() {
-int i, j; 
+int i, j;
 
    for (i=0; i<4; i++)
       for (j=0; j<4; j++)
@@ -206,10 +210,10 @@ float oneDegree = 0.017453;
 float angle, sinAngle, cosAngle;
 float result[4][4];
 int i, j;
-float rotx[4][4]  = {1.0, 0.0, 0.0, 0.0, 
-                     0.0, 1.0, 0.0, 0.0, 
-                     0.0, 0.0, 1.0, 0.0, 
-                     0.0, 0.0, 0.0, 1.0}; 
+float rotx[4][4]  = {1.0, 0.0, 0.0, 0.0,
+                     0.0, 1.0, 0.0, 0.0,
+                     0.0, 0.0, 1.0, 0.0,
+                     0.0, 0.0, 0.0, 1.0};
 
    angle = (float) rot * oneDegree;
    sinAngle = sinf(angle);
@@ -233,10 +237,10 @@ float oneDegree = 0.017453;
 float angle, sinAngle, cosAngle;
 float result[4][4];
 int i, j;
-float roty[4][4]  = {1.0, 0.0, 0.0, 0.0, 
-                     0.0, 1.0, 0.0, 0.0, 
-                     0.0, 0.0, 1.0, 0.0, 
-                     0.0, 0.0, 0.0, 1.0}; 
+float roty[4][4]  = {1.0, 0.0, 0.0, 0.0,
+                     0.0, 1.0, 0.0, 0.0,
+                     0.0, 0.0, 1.0, 0.0,
+                     0.0, 0.0, 0.0, 1.0};
 
    angle = (float) rot * oneDegree;
    sinAngle = sinf(angle);
@@ -260,10 +264,10 @@ float oneDegree = 0.017453;
 float angle, sinAngle, cosAngle;
 float result[4][4];
 int i, j;
-float rotz[4][4]  = {1.0, 0.0, 0.0, 0.0, 
-                     0.0, 1.0, 0.0, 0.0, 
-                     0.0, 0.0, 1.0, 0.0, 
-                     0.0, 0.0, 0.0, 1.0}; 
+float rotz[4][4]  = {1.0, 0.0, 0.0, 0.0,
+                     0.0, 1.0, 0.0, 0.0,
+                     0.0, 0.0, 1.0, 0.0,
+                     0.0, 0.0, 0.0, 1.0};
 
    angle = (float) rot * oneDegree;
    sinAngle = sinf(angle);
@@ -296,15 +300,24 @@ int i, j;
    for(i=0; i<SCREENSIZE; i++) {
       for(j=0; j<SCREENSIZE; j++) {
          frameBuffer[i][j] = ' ';
-         depthBuffer[i][j] = -1000.0; 
+         depthBuffer[i][j] = -1000.0;
       }
    }
 }
 
+// void *testFunc(void* i) {
+//   long num = (long) i;
+//   printf("Hi %ld\n",num);
+// }
+
 void movePoints() {
 static int counter = 1;
-int i; 
+long i;
 int x, y;
+
+  pthread_t* thread_handles;
+
+  thread_handles = malloc (numberOfThreads*sizeof(pthread_t));
 
 	// initialize transformation matrix
 	// this needs to be done before the transformation is performed
@@ -316,19 +329,16 @@ int x, y;
    yRot(counter);
    counter++;
 
-	// transform the points using the transformation matrix
-	// store the results of the transformation in the drawing array
-   for (i=0; i<pointCount; i++) {
-      vectorMult(drawArray[i], pointArray[i], transformArray);
-	// scale the points for curses screen resolution
-      drawArray[i][0] *= 20;
-      drawArray[i][1] *= 20;
-      drawArray[i][0] += 50;
-      drawArray[i][1] += 50;
 
-      drawArray[i][2] *= 20;
-      drawArray[i][2] += 50;
+   for(i=0; i<numberOfThreads; i++) {
+     pthread_create(&thread_handles[i], NULL, transformPoints, (void*) i);
    }
+   for(i=0; i<numberOfThreads; i++) {
+     pthread_join(thread_handles[i], NULL);
+   }
+   free(thread_handles);
+
+
 
 	// clears buffers before drawing screen
    clearBuffers();
@@ -339,17 +349,50 @@ int x, y;
    for (i=0; i<pointCount; i++) {
       x = (int) drawArray[i][0];
       y = (int) drawArray[i][1];
-      if (depthBuffer[x][y] < drawArray[i][2]) { 
+      if (depthBuffer[x][y] < drawArray[i][2]) {
          if (drawArray[i][2] > 60.0)
-            frameBuffer[x][y] = 'X'; 
+            frameBuffer[x][y] = 'X';
          else if (drawArray[i][2] < 40.0)
-            frameBuffer[x][y] = '.'; 
+            frameBuffer[x][y] = '.';
          else
-            frameBuffer[x][y] = 'o'; 
+            frameBuffer[x][y] = 'o';
          depthBuffer[x][y] = drawArray[i][2];
       }
    }
 
+}
+
+
+
+void* transformPoints(void* a) {
+
+  long num = (long) a;
+
+  //printf("Thread: %ld \t",num);
+
+  int bottom = (pointCount*num)/numberOfThreads;
+  int top = (pointCount*(num + 1)/numberOfThreads) - 1;
+
+  //printf("\tMath: %d, ",(pointCount/numberOfThreads));
+  //printf("Math2: %ld",(num+1));
+  //printf("  ---  ");
+
+  //printf("A1: \n");
+
+  // transform the points using the transformation matrix
+  // store the results of the transformation in the drawing array
+  //printf("bot: %d, top: %d a: %ld\n",bottom,top,num);
+   for (int i=bottom; i<=top; i++) {
+      vectorMult(drawArray[i], pointArray[i], transformArray);
+  // scale the points for curses screen resolution
+      drawArray[i][0] *= 20;
+      drawArray[i][1] *= 20;
+      drawArray[i][0] += 50;
+      drawArray[i][1] += 50;
+
+      drawArray[i][2] *= 20;
+      drawArray[i][2] += 50;
+   }
 }
 
 int main(int argc, char *argv[]) {
@@ -357,7 +400,7 @@ int i, count;
 int argPtr;
 int drawCube, drawRandom;
 
-	// set number of iterations, only used for timing tests 
+	// set number of iterations, only used for timing tests
 	// not used in curses version
    count = ITERATIONS;
 
@@ -365,7 +408,7 @@ int drawCube, drawRandom;
    drawCube = 0;
    drawRandom = 0;
 
-	// read command line arguments for number of iterations 
+	// read command line arguments for number of iterations
    if (argc > 1) {
       argPtr = 1;
       while(argPtr < argc) {
@@ -383,10 +426,10 @@ int drawCube, drawRandom;
          } else {
             printf("USAGE: %s <-i iterations> <-cube | -points #>\n", argv[0]);
             printf(" iterations -the number of times the population will be updated\n");
-	    printf("    the number of iterations only affects the non-curses program\n");
-	    printf(" the curses program exits when q is pressed\n");
-	    printf(" choose either -cube to draw the cube shape or -points # to\n");
-	    printf("    draw random points where # is an integer number of points to draw\n");
+	          printf("    the number of iterations only affects the non-curses program\n");
+	          printf(" the curses program exits when q is pressed\n");
+	          printf(" choose either -cube to draw the cube shape or -points # to\n");
+	          printf("    draw random points where # is an integer number of points to draw\n");
             exit(1);
          }
       }
@@ -416,7 +459,7 @@ int drawCube, drawRandom;
 #endif
 
 
-	// draw and move points using ncurses 
+	// draw and move points using ncurses
 	// do not calculate timing in this loop, ncurses will reduce performance
 #ifndef NOGRAPHICS
    while(1) {
