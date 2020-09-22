@@ -10,7 +10,8 @@
 #include<stdlib.h>
 #include<math.h>
 #include<string.h>
-#include<pthread.h>
+#include <time.h>
+#include <sys/timeb.h>
 #ifndef NOGRAPHICS
 #include<unistd.h>
 #include<ncurses.h>
@@ -31,31 +32,15 @@ float **pointArray;
 	// array of points after transformation
 float **drawArray;
 
-float mArray[4][4];
-float aG[4];
-float bG[4];
-
-
 	// transformation matrix
 float transformArray[4][4];
 	// display buffers
 char frameBuffer[SCREENSIZE][SCREENSIZE];
 float depthBuffer[SCREENSIZE][SCREENSIZE];
 
-pthread_mutex_t lock;
-pthread_mutex_t lock2;
-pthread_mutex_t lock3;
+
 
 void vectorMult(float a[4], float b[4], float c[4][4]);
-//void* vectorMultLoop();
-void* pointsToFrameBuffer(void* n);
-void* sortPoints(void* n);
-
-void* vectorMultMultiplication();
-void* vectorMultAddition();
-
-int drawX, drawY;
-
 
 
 #ifndef NOGRAPHICS
@@ -123,124 +108,22 @@ int row, col, element;
 	/* calculates the product of vector b and matrix c
            stores the result in vector a */
 void vectorMult(float a[4], float b[4], float c[4][4]) {
-  //long col, element;
-  pthread_t* thread_handles;
-
-  for(int i = 0; i < 4; i++) {
-      aG[i] = a[i];
-      bG[i] = b[i];
-  }
+int col, element;
 
 
-  //printf("1\n");
-
-  thread_handles = malloc(2*sizeof(pthread_t));
-
-  // for (col=0; col<4; col++) {
-  //    aG[col] = 0.0;
-
-
-
-      //pthread_mutex_lock(&lock2);
-      //printf("lock1\n");
-
-      //pthread_create(&thread_handles[0], NULL, vectorMultMultiplication, (void*) col);
-pthread_create(&thread_handles[0], NULL, vectorMultMultiplication, NULL);
-      //pthread_create(&thread_handles[1], NULL, vectorMultAddition, (void*) col);
-pthread_create(&thread_handles[1], NULL, vectorMultAddition, NULL);
-
-      pthread_join(thread_handles[0], NULL);
-      pthread_join(thread_handles[1], NULL);
-
-
-//   }
-
-
-   free(thread_handles);
-   //printf("3\n");
-
-   //pthread_mutex_lock(&lock2);
-   //printf("lock2\n");
-   //printf("4\n");
-
-
-   for(int i = 0; i < 4; i++) {
-       a[i] = aG[i];
+   for (col=0; col<4; col++) {
+      a[col] = 0.0;
+      for (element=0; element<4; element++) {
+         a[col] += b[element] * c[element][col];
+         //float tempN = b[element] * c[element][col];
+         //printf("*[%d]: %f\n",col,tempN);
+      }
+      //printf("a: %f, b: %f, c: %f\t",a[col],b[0],c[0][col]);
    }
-   //printf("5\n");
-   pthread_mutex_unlock(&lock);
-   //pthread_mutex_unlock(&lock2);
-   //printf("unlock2\n");
-   //printf("6\n");
-
+   //printf("\n");
 
 }
 
-void* vectorMultMultiplication() {
-  pthread_mutex_lock(&lock2);
-  //printf("lock3\n");
-  int element;
-  int col;
-  //long col = (long) n;
-
-  //printf("vMM\n");
-
-  //printf("2\n");
-  for(col=0; col<4; col++){
-    for (element=0; element<4; element++) {
-      mArray[element][col] = bG[element] * transformArray[element][col];
-      //printf("mArray[e] = %f\n",mArray[element]);
-    }
-
-  }
-
-  pthread_mutex_unlock(&lock2);
-}
-
-void* vectorMultAddition() {
-  pthread_mutex_lock(&lock2);
-  int col, element;
-//  long col = (long) n;
-
-  //printf("vMA\n");
-
-  for(col=0; col<4; col++){
-    aG[col] = 0;
-    for(element=0; element<4; element++){
-      aG[col] += mArray[element][col];
-
-    }
-
-  }
-
-/*
-  for (int col=0; col<4; col++) {
-     aG[col] = 0.0;
-     for (int element=0; element<4; element++) {
-        aG[col] += bG[element] * transformArray[element][col];
-     }
-  }
-  printf("tempA[%ld]: %f, aG[%ld]: %f\n",tempN,tempA[tempN],tempN,aG[tempN]);*/
-
-
-
-//  printf("aG: %f\n",aG[col]);
-  //pthread_mutex_unlock(&lock2);
-//  printf("unlock3\n");
-  pthread_mutex_unlock(&lock2);
-
-
-}
-
-/*
-void* vectorMultMult(void* e) {
-  ret = b[element] * c[element][col];
-}
-
-void* vectorMultAdd(void* c) {
-  a[col] += a[col] +
-}
-*/
 void allocateArrays() {
 int i;
 
@@ -411,7 +294,7 @@ void translate(float x, float y, float z) {
    transformArray[3][2] = z;
 }
 
-void* clearBuffers() {
+void clearBuffers() {
 int i, j;
 
 	// empty the frame buffer
@@ -426,12 +309,8 @@ int i, j;
 
 void movePoints() {
 static int counter = 1;
-long i;
-long thread;
-
-  pthread_t* thread_handles;
-
-  //thread_handles = malloc(2*sizeof(pthread_t));
+int i;
+int x, y;
 
 	// initialize transformation matrix
 	// this needs to be done before the transformation is performed
@@ -443,13 +322,11 @@ long thread;
    yRot(counter);
    counter++;
 
-   // transform the points using the transformation matrix
-   // store the results of the transformation in the drawing array
-    for (i=0; i<pointCount; i++) {
-      pthread_mutex_lock(&lock);
+	// transform the points using the transformation matrix
+	// store the results of the transformation in the drawing array
+   for (i=0; i<pointCount; i++) {
       vectorMult(drawArray[i], pointArray[i], transformArray);
-
-   // scale the points for curses screen resolution
+	// scale the points for curses screen resolution
       drawArray[i][0] *= 20;
       drawArray[i][1] *= 20;
       drawArray[i][0] += 50;
@@ -457,95 +334,29 @@ long thread;
 
       drawArray[i][2] *= 20;
       drawArray[i][2] += 50;
+   }
 
-
-    }
-
-   //pthread_create(&thread_handles[0], NULL, vectorMultLoop, NULL);
-
-	 // clears buffers before drawing screen
-   //pthread_create(&thread_handles[1], NULL, clearBuffers, NULL);
+	// clears buffers before drawing screen
    clearBuffers();
-
-   /*for (thread = 0; thread < 2; thread++)
-      pthread_join(thread_handles[thread], NULL);
-
-   free(thread_handles);*/
-
-
 
 	// draw the screen
 	// adds points to the frame buffer, use depth buffer to
 	// sort points based upon distance from the viewer
-  drawX = 0;
-  drawY = 0;
    for (i=0; i<pointCount; i++) {
-      thread_handles = malloc(2*sizeof(pthread_t));
-      pthread_create(&thread_handles[0], NULL, pointsToFrameBuffer, (void*) i);
-      pthread_create(&thread_handles[1], NULL, sortPoints, (void*) i);
-
-      for (thread = 0; thread < 2; thread++)
-        pthread_join(thread_handles[thread], NULL);
-
-      free(thread_handles);
+      x = (int) drawArray[i][0];
+      y = (int) drawArray[i][1];
+      if (depthBuffer[x][y] < drawArray[i][2]) {
+         if (drawArray[i][2] > 60.0)
+            frameBuffer[x][y] = 'X';
+         else if (drawArray[i][2] < 40.0)
+            frameBuffer[x][y] = '.';
+         else
+            frameBuffer[x][y] = 'o';
+         depthBuffer[x][y] = drawArray[i][2];
+      }
    }
 
-
 }
-
-void* pointsToFrameBuffer(void* n) {
-  pthread_mutex_lock(&lock);
-  long i = (long) n;
-  //printf("i: %ld\n",i);
-
-   drawX = (int) drawArray[i][0];
-   drawY = (int) drawArray[i][1];
-
-   //printf("[first]  DrawX: %d, DrawY: %d, i: %ld\n",drawX,drawY,i);
-
-   pthread_mutex_unlock(&lock);
-}
-
-void* sortPoints(void* n) {
-  pthread_mutex_lock(&lock);
-  long i = (long) n;
-
-
-  if (depthBuffer[drawX][drawY] < drawArray[i][2]) {
-     if (drawArray[i][2] > 60.0)
-        frameBuffer[drawX][drawY] = 'X';
-     else if (drawArray[i][2] < 40.0)
-        frameBuffer[drawX][drawY] = '.';
-     else
-        frameBuffer[drawX][drawY] = 'o';
-     depthBuffer[drawX][drawY] = drawArray[i][2];
-  }
-
-  //printf("[second]  DrawX: %d, DrawY: %d, i: %ld\n",drawX,drawY,i);
-
-  pthread_mutex_unlock(&lock);
-
-}
-
-//Commented out function as to parallelize a different section
-/*
-void* vectorMultLoop() {
-  int i;
-  // transform the points using the transformation matrix
-  // store the results of the transformation in the drawing array
-   for (i=0; i<pointCount; i++) {
-      vectorMult(drawArray[i], pointArray[i], transformArray);
-  // scale the points for curses screen resolution
-      drawArray[i][0] *= 20;
-      drawArray[i][1] *= 20;
-      drawArray[i][0] += 50;
-      drawArray[i][1] += 50;
-
-      drawArray[i][2] *= 20;
-      drawArray[i][2] += 50;
-   }
-}
-*/
 
 int main(int argc, char *argv[]) {
 int i, count;
@@ -625,10 +436,19 @@ int drawCube, drawRandom;
    printf("Number of iterations %d\n", count);
 
 	/*** Start timing here ***/
+  struct timeb start, end;
+  int timeDif;
+
+  ftime(&start);
 
    for(i=0; i<count; i++) {
       movePoints();
    }
+
+   ftime(&end);
+
+   timeDif = (int)(1000.0*(end.time-start.time)+(end.millitm-start.millitm));
+   printf("Inversions: %d, Runtime: %dms\n",count,timeDif);
 	/*** End timing here ***/
 #endif
 

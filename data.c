@@ -11,6 +11,8 @@
 #include<math.h>
 #include<string.h>
 #include<pthread.h>
+#include <time.h>
+#include <sys/timeb.h>
 #ifndef NOGRAPHICS
 #include<unistd.h>
 #include<ncurses.h>
@@ -26,7 +28,7 @@
 
 	// number of points
 int pointCount;
-int numberOfThreads = 8;
+int numberOfThreads = 1;
 
 	// array of points before transformation
 float **pointArray;
@@ -474,9 +476,24 @@ int drawCube, drawRandom;
 
 	/*** Start timing here ***/
 
+  struct timeb start, end;
+  int timeDif;
+
+  ftime(&start);
+
+
+
    for(i=0; i<count; i++) {
       movePoints();
    }
+
+
+   ftime(&end);
+
+   timeDif = (int)(1000.0*(end.time-start.time)+(end.millitm-start.millitm));
+   printf("Runtime: %dms\n",timeDif);
+
+
 	/*** End timing here ***/
 #endif
 
