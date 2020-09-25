@@ -26,9 +26,11 @@
 	// when graphics are turned off
 #define ITERATIONS 1000
 
+//number of threads
+int numberOfThreads = 1;
+
 	// number of points
 int pointCount;
-int numberOfThreads = 1;
 
 	// array of points before transformation
 float **pointArray;
@@ -307,10 +309,6 @@ int i, j;
    }
 }
 
-// void *testFunc(void* i) {
-//   long num = (long) i;
-//   printf("Hi %ld\n",num);
-// }
 
 void movePoints() {
 static int counter = 1;
@@ -375,15 +373,10 @@ void* transformPoints(void* a) {
   int bottom = (pointCount*num)/numberOfThreads;
   int top = (pointCount*(num + 1)/numberOfThreads) - 1;
 
-  //printf("\tMath: %d, ",(pointCount/numberOfThreads));
-  //printf("Math2: %ld",(num+1));
-  //printf("  ---  ");
 
-  //printf("A1: \n");
 
   // transform the points using the transformation matrix
   // store the results of the transformation in the drawing array
-  //printf("bot: %d, top: %d a: %ld\n",bottom,top,num);
    for (int i=bottom; i<=top; i++) {
       vectorMult(drawArray[i], pointArray[i], transformArray);
   // scale the points for curses screen resolution
